@@ -49,3 +49,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /prisma/*.db.bak
+desktop/.cache/
+desktop/AppIcon.iconset/
+desktop/AppIcon-1024.png

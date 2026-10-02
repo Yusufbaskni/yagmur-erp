@@ -11,6 +11,7 @@ import { writeAudit } from "@/server/audit";
 import { COMPANY_COOKIE, resolveActor } from "@/server/company";
 import { db, withTx } from "@/server/db";
 import { asErp, rethrowRedirect } from "@/server/errors";
+import { assertPermission } from "@/server/permissions";
 import {
   cancelGoodsReceipt,
   cancelPurchaseOrder,
@@ -104,6 +105,9 @@ export async function loginAction(
     where: { userId: user.id },
     orderBy: { company: { name: "asc" } },
   });
+  if (!membership) {
+    return { error: "Şirket üyeliğiniz yok. Yöneticiye başvurun." };
+  }
   const token = await signSession({ sub: user.id, email: user.email, name: user.name });
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
@@ -115,14 +119,12 @@ export async function loginAction(
       (process.env.COOKIE_SECURE !== "0" && process.env.NODE_ENV === "production"),
     maxAge: 60 * 60 * 24 * 7,
   });
-  if (membership) {
-    jar.set(COMPANY_COOKIE, membership.companyId, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-    });
-  }
+  jar.set(COMPANY_COOKIE, membership.companyId, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
   redirect("/");
 }
 
@@ -781,51 +783,65 @@ export async function respondEInvoiceAction(formData: FormData) {
 }
 
 export async function exportBackupAction() {
-  const a = await actor();
-  const dbUrl = process.env.DATABASE_URL ?? "file:./dev.db";
-  const file = dbUrl.replace(/^file:/, "");
-  const abs = path.isAbsolute(file) ? file : path.join(process.cwd(), "prisma", path.basename(file));
-  const outDir = path.join(process.cwd(), "prisma", "backups");
-  fs.mkdirSync(outDir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const out = path.join(outDir, `yagmur-backup-${stamp}.db`);
-  fs.copyFileSync(abs, out);
-  await withTx(async (tx) =>
-    writeAudit(tx, {
-      companyId: a.companyId,
-      userId: a.userId,
-      action: "BACKUP",
-      entityType: "Database",
-      summary: `Yedek alındı: ${path.basename(out)}`,
-    }),
-  );
-  touch();
-  redirect(`/ayarlar?yedek=${encodeURIComponent(path.basename(out))}`);
+  try {
+    const a = await actor();
+    assertPermission(a.role, "backup");
+    const dbUrl = process.env.DATABASE_URL ?? "file:./dev.db";
+    const file = dbUrl.replace(/^file:/, "");
+    const abs = path.isAbsolute(file) ? file : path.join(process.cwd(), "prisma", path.basename(file));
+    const outDir = path.join(process.cwd(), "prisma", "backups");
+    fs.mkdirSync(outDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const out = path.join(outDir, `yagmur-backup-${stamp}.db`);
+    fs.copyFileSync(abs, out);
+    await withTx(async (tx) =>
+      writeAudit(tx, {
+        companyId: a.companyId,
+        userId: a.userId,
+        action: "BACKUP",
+        entityType: "Database",
+        summary: `Yedek alındı: ${path.basename(out)}`,
+      }),
+    );
+    touch();
+    redirect(`/ayarlar?yedek=${encodeURIComponent(path.basename(out))}`);
+  } catch (error) {
+    rethrowRedirect(error);
+    const erp = asErp(error);
+    redirect(`/ayarlar?hata=${encodeURIComponent(erp?.message ?? "Yedek alınamadı.")}`);
+  }
 }
 
 export async function importBackupAction(formData: FormData) {
-  const a = await actor();
-  const name = String(formData.get("backupFile") ?? "");
-  if (!name || name.includes("..") || name.includes("/")) {
-    redirect(`/ayarlar?hata=${encodeURIComponent("Geçersiz yedek dosyası.")}`);
+  try {
+    const a = await actor();
+    assertPermission(a.role, "backup");
+    const name = String(formData.get("backupFile") ?? "");
+    if (!name || name.includes("..") || name.includes("/")) {
+      redirect(`/ayarlar?hata=${encodeURIComponent("Geçersiz yedek dosyası.")}`);
+    }
+    const src = path.join(process.cwd(), "prisma", "backups", name);
+    if (!fs.existsSync(src)) {
+      redirect(`/ayarlar?hata=${encodeURIComponent("Yedek bulunamadı.")}`);
+    }
+    const dbUrl = process.env.DATABASE_URL ?? "file:./dev.db";
+    const file = dbUrl.replace(/^file:/, "");
+    const abs = path.isAbsolute(file) ? file : path.join(process.cwd(), "prisma", path.basename(file));
+    fs.copyFileSync(src, abs);
+    await writeAudit(db(), {
+      companyId: a.companyId,
+      userId: a.userId,
+      action: "RESTORE",
+      entityType: "Database",
+      summary: `Yedek geri yüklendi: ${name}`,
+    });
+    touch();
+    redirect("/ayarlar?ok=restore");
+  } catch (error) {
+    rethrowRedirect(error);
+    const erp = asErp(error);
+    redirect(`/ayarlar?hata=${encodeURIComponent(erp?.message ?? "Yedek geri yüklenemedi.")}`);
   }
-  const src = path.join(process.cwd(), "prisma", "backups", name);
-  if (!fs.existsSync(src)) {
-    redirect(`/ayarlar?hata=${encodeURIComponent("Yedek bulunamadı.")}`);
-  }
-  const dbUrl = process.env.DATABASE_URL ?? "file:./dev.db";
-  const file = dbUrl.replace(/^file:/, "");
-  const abs = path.isAbsolute(file) ? file : path.join(process.cwd(), "prisma", path.basename(file));
-  fs.copyFileSync(src, abs);
-  await writeAudit(db(), {
-    companyId: a.companyId,
-    userId: a.userId,
-    action: "RESTORE",
-    entityType: "Database",
-    summary: `Yedek geri yüklendi: ${name}`,
-  });
-  touch();
-  redirect("/ayarlar?ok=restore");
 }
 
 // silence unused import warning for parseVatRate if tree-shaken oddly

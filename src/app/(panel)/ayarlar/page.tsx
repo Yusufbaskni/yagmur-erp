@@ -33,13 +33,14 @@ export default async function SettingsPage({
   searchParams: Promise<{ hata?: string; yedek?: string; ok?: string }>;
 }) {
   const { hata, yedek, ok } = await searchParams;
-  const [{ company }, warehouses, currencies, accounts] = await Promise.all([
+  const [{ company, actor }, warehouses, currencies, accounts] = await Promise.all([
     getActiveCompany(),
     listWarehouses(),
     listCurrencyRates(),
     listMoneyAccounts(),
   ]);
-  const backups = listBackupFiles();
+  const canBackup = actor.role === "ADMIN";
+  const backups = canBackup ? listBackupFiles() : [];
   return (
     <div>
       <PageHeader
@@ -91,6 +92,16 @@ export default async function SettingsPage({
           <li>Aynı fatura için reddedilmemiş ikinci e-Fatura açılamaz.</li>
           <li>Taslak → sandbox gönder → kabul/red simülasyonu sırası izlenir.</li>
           <li>Üretilen UBL XML yerel kayıttır; resmi geçerlilik yoktur.</li>
+        </ul>
+      </Panel>
+
+      <Panel className="mb-4 p-4">
+        <h2 className="text-sm font-semibold">Bilinçli sınırlar</h2>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>İK kaydı vardır; Türk bordro, SGK ve işveren bildirimi yoktur.</li>
+          <li>Yevmiye operasyonel izdir; resmi muhasebe defteri iddiası yoktur.</li>
+          <li>Stok hareketlerinde ürün toplamı ile depo satırları işlem sonunda karşılaştırılır.</li>
+          <li>Masaüstü Swift kabuğudur; Apple Developer imzası / App Store dağıtımı yoktur.</li>
         </ul>
       </Panel>
 
@@ -170,35 +181,43 @@ export default async function SettingsPage({
 
       <Panel className="p-4">
         <h2 className="text-sm font-semibold">Yedekleme</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          SQLite veritabanı kopyası `prisma/backups` altına alınır. Geri yükleme mevcut dosyayı
-          değiştirir.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <form action={exportBackupAction}>
-            <Button type="submit" size="sm">
-              Yedek al
-            </Button>
-          </form>
-        </div>
-        {backups.length > 0 ? (
-          <form action={importBackupAction} className="mt-4 flex flex-wrap items-end gap-2">
-            <label className="grid gap-1 text-xs">
-              <span>Geri yüklenecek dosya</span>
-              <select name="backupFile" className={fieldClass} defaultValue={backups[0]}>
-                {backups.map((file) => (
-                  <option key={file} value={file}>
-                    {file}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button type="submit" size="sm" variant="outline">
-              Geri yükle
-            </Button>
-          </form>
+        {canBackup ? (
+          <>
+            <p className="mt-1 text-sm text-muted-foreground">
+              SQLite veritabanı kopyası `prisma/backups` altına alınır. Geri yükleme mevcut dosyayı
+              değiştirir. Yalnızca yönetici yapabilir.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <form action={exportBackupAction}>
+                <Button type="submit" size="sm">
+                  Yedek al
+                </Button>
+              </form>
+            </div>
+            {backups.length > 0 ? (
+              <form action={importBackupAction} className="mt-4 flex flex-wrap items-end gap-2">
+                <label className="grid gap-1 text-xs">
+                  <span>Geri yüklenecek dosya</span>
+                  <select name="backupFile" className={fieldClass} defaultValue={backups[0]}>
+                    {backups.map((file) => (
+                      <option key={file} value={file}>
+                        {file}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button type="submit" size="sm" variant="outline">
+                  Geri yükle
+                </Button>
+              </form>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">Henüz yedek yok.</p>
+            )}
+          </>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">Henüz yedek yok.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Yedek alma ve geri yükleme yalnızca yöneticiye açıktır.
+          </p>
         )}
       </Panel>
     </div>

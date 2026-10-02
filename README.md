@@ -79,25 +79,22 @@ npm run db:reset
 
 ## Masaüstü
 
+Dock’taki uygulama **Swift + WKWebView** kabuğudur. Arka planda yerel Next.js sunucusu çalışır. Veri yolu Electron ile aynıdır: `~/Library/Application Support/Yagmur ERP/yagmur.db`.
+
 ```bash
 npm install
-npm run desktop
+npm run desktop:swift
 ```
 
-Şema veya arayüz değişince:
+Bu komut standalone paketi üretir, resmi Node binary’sini uygulamaya gömer, `/Applications/Yagmur ERP.app` olarak kurar ve açar. Homebrew Node şart değildir.
+
+Geliştirme için tarayıcı:
 
 ```bash
-npm run desktop:build
-npm run desktop
+npm run dev
 ```
 
-Mac `.app` / `.dmg` üretimi için macOS gerekir:
-
-```bash
-npm run dist:mac
-```
-
-İmza aranmaz.
+Eski Electron paketi hâlâ `npm run dist:mac` ile üretilebilir; varsayılan masaüstü Swift’tir.
 
 ## Mac klasörü
 

@@ -2,6 +2,20 @@ import { formatQty } from "@/lib/format";
 import type { Db } from "@/server/db";
 import { ErpError } from "@/server/errors";
 
+/** Ürün kartındaki toplam ile depo satırları sapmasın diye işlem sonrası doğrular. */
+export async function assertProductStockMatchesWarehouses(tx: Db, productId: string) {
+  const product = await tx.product.findUnique({ where: { id: productId } });
+  if (!product) throw new ErpError("Ürün bulunamadı.");
+  const rows = await tx.warehouseStock.findMany({ where: { productId } });
+  const onHand = rows.reduce((sum, row) => sum + row.onHand, 0);
+  const reserved = rows.reduce((sum, row) => sum + row.reserved, 0);
+  if (onHand !== product.stockOnHand || reserved !== product.stockReserved) {
+    throw new ErpError(
+      `Stok tutarsızlığı: ${product.sku}. Ürün eldeki ${formatQty(product.stockOnHand)} / rezerv ${formatQty(product.stockReserved)}; depolar ${formatQty(onHand)} / ${formatQty(reserved)}.`,
+    );
+  }
+}
+
 export async function ensureWarehouseStock(
   tx: Db,
   warehouseId: string,
@@ -86,6 +100,7 @@ export async function applyStock(
       serialCode: args.serialCode ?? null,
     },
   });
+  await assertProductStockMatchesWarehouses(tx, product.id);
 }
 
 export async function reserveStock(
@@ -130,6 +145,7 @@ export async function reserveStock(
       note: `Rezervasyon ${args.sourceLabel}`,
     },
   });
+  await assertProductStockMatchesWarehouses(tx, product.id);
 }
 
 export async function releaseReservation(
@@ -171,6 +187,7 @@ export async function releaseReservation(
       note: `Rezerv iptali ${args.sourceLabel}`,
     },
   });
+  await assertProductStockMatchesWarehouses(tx, product.id);
 }
 
 export async function consumeReservationAndShip(

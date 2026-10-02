@@ -1,12 +1,12 @@
 const { app, BrowserWindow, Menu, dialog, shell } = require("electron");
 const { spawn, spawnSync } = require("node:child_process");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 
 const HOST = "127.0.0.1";
-const AUTH_SECRET = process.env.AUTH_SECRET || "yagmur-erp-yerel-gelistirme-anahtari";
 
 let serverProcess = null;
 let serverLog = "";
@@ -33,13 +33,27 @@ function databaseUrl() {
   return `file:${databaseFile()}`;
 }
 
+function authSecret() {
+  if (process.env.AUTH_SECRET?.trim()) return process.env.AUTH_SECRET.trim();
+  const dir = app.getPath("userData");
+  fs.mkdirSync(dir, { recursive: true });
+  const secretPath = path.join(dir, "auth-secret");
+  if (fs.existsSync(secretPath)) {
+    const existing = fs.readFileSync(secretPath, "utf8").trim();
+    if (existing) return existing;
+  }
+  const generated = crypto.randomBytes(32).toString("hex");
+  fs.writeFileSync(secretPath, generated, { encoding: "utf8", mode: 0o600 });
+  return generated;
+}
+
 function serverEnv() {
   return {
     ...process.env,
     NODE_ENV: "production",
     HOSTNAME: HOST,
     DATABASE_URL: databaseUrl(),
-    AUTH_SECRET,
+    AUTH_SECRET: authSecret(),
     COOKIE_SECURE: "0",
     ELECTRON_RUN_AS_NODE: app.isPackaged ? "1" : "",
   };

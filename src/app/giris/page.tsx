@@ -1,7 +1,12 @@
-import { COMPANY, DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/demo";
+import { COMPANY } from "@/lib/demo";
 import { LoginForm } from "@/app/giris/login-form";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hata?: string }>;
+}) {
+  const { hata } = await searchParams;
   return (
     <main className="grid min-h-screen lg:grid-cols-[280px_1fr]">
       <section className="hidden flex-col justify-between bg-sidebar px-6 py-8 text-sidebar-foreground lg:flex">
@@ -24,17 +29,13 @@ export default function LoginPage() {
           </p>
           <h2 className="text-xl font-semibold">Oturum açın</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Günlük ticari işlemlere devam etmek için demo hesapla girin.
+            Yetkili hesabınızla giriş yapın. Demo hesap bilgisi README dosyasındadır.
           </p>
-          <div className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm">
-            <p className="font-medium">Demo hesap</p>
-            <p className="mt-1">
-              E-posta: <span className="font-medium">{DEMO_EMAIL}</span>
+          {hata ? (
+            <p role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {hata}
             </p>
-            <p>
-              Şifre: <span className="font-medium">{DEMO_PASSWORD}</span>
-            </p>
-          </div>
+          ) : null}
           <LoginForm />
         </div>
       </section>

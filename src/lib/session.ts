@@ -9,9 +9,11 @@ export type SessionUser = {
 };
 
 function secret() {
-  return new TextEncoder().encode(
-    process.env.AUTH_SECRET || "yagmur-erp-yerel-gelistirme-anahtari",
-  );
+  const value = process.env.AUTH_SECRET?.trim();
+  if (!value) {
+    throw new Error("AUTH_SECRET tanımlı değil. .env dosyasına rastgele bir değer yazın.");
+  }
+  return new TextEncoder().encode(value);
 }
 
 export async function signSession(user: SessionUser) {

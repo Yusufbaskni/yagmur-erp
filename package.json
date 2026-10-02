@@ -18,7 +18,9 @@
     "postinstall": "prisma generate",
     "desktop": "node scripts/desktop.mjs",
     "desktop:build": "node scripts/prepare-standalone.mjs",
-    "dist:mac": "node scripts/dist-mac.mjs"
+    "desktop:swift": "node scripts/build-swift-app.mjs",
+    "dist:mac": "node scripts/dist-mac.mjs",
+    "dist:swift": "node scripts/build-swift-app.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
